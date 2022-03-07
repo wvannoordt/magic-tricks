@@ -1,4 +1,4 @@
-
+#pragma once
 template <typename index_t, const std::size_t idx_dim> struct md_iterator
 {
     index_t idx_v, start_v, end_v;    
