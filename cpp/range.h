@@ -1,7 +1,11 @@
 #pragma once
+#include <iostream>
+#include <array>
+
 template <typename index_t, const std::size_t idx_dim> struct md_iterator
 {
-    index_t idx_v, start_v, end_v;    
+    constexpr size_t size(void) const noexcept {return idx_dim;}
+    index_t idx_v, start_v, end_v;
     typedef std::size_t base_type_t;
     typename std::conditional<(idx_dim<=1), base_type_t, md_iterator<index_t,idx_dim-1>>::type next;
     template <typename... idxs_t> static void set_start_r(std::size_t& base){base = 0;}
@@ -15,7 +19,7 @@ template <typename index_t, const std::size_t idx_dim> struct md_iterator
     {
         arg.idx_v = arg.start_v;
         set_end_r(arg.next);
-    } 
+    }
     md_iterator& set_start(void)
     {
         set_start_r(*this);
@@ -39,12 +43,14 @@ template <typename index_t, const std::size_t idx_dim> struct md_iterator
         end_v   = i1;
         call_set_val_r(this->next, idxs...);
     }
+    
     md_iterator(void) {}
     template <typename... idxs_t> md_iterator(idxs_t... idxs)
     {
         static_assert(sizeof...(idxs_t)==2*idx_dim, "md_iterator of size N requires 2N integral arguments!");
         set_val_r(idxs...);
     }
+    
     md_iterator& operator ++ (void)
     {
         ++idx_v;
@@ -57,9 +63,18 @@ template <typename index_t, const std::size_t idx_dim> struct md_iterator
         return (this->idx_v != rhs.idx_v) || (this->next != rhs.next);
     }
     
-    md_iterator& operator * (void)
+    template <const std::size_t dim_i> static const md_iterator& deref_iter(const md_iterator<index_t,dim_i>* ptr, const index_t& val)
     {
-        return *this;
+        return *ptr;
+    }
+    static index_t deref_iter(const md_iterator<index_t,1>* ptr, const index_t& val)
+    {
+        return val;
+    }
+    
+    auto operator * (void) const
+    {
+        return deref_iter(this, idx_v);
     }
     constexpr index_t brack_r(const typename md_iterator<index_t,0>::base_type_t& iter, std::size_t idx) const noexcept
     {
@@ -84,7 +99,7 @@ template <typename index_t, const std::size_t idx_dim> struct md_iterator
 };
 
 template <typename index_t, const std::size_t ar_dim>
-void iter_ar_set_start_end(
+static void iter_ar_set_start_end(
     typename md_iterator<index_t, 0>::base_type_t& iter,
     const std::size_t idx,
     const std::array<index_t,ar_dim>& start_vs,
@@ -94,7 +109,7 @@ void iter_ar_set_start_end(
 }
 
 template <typename index_t, const std::size_t idx_dim, const std::size_t ar_dim>
-void iter_ar_set_start_end(
+static void iter_ar_set_start_end(
     md_iterator<index_t, idx_dim>& iter,
     const std::size_t idx,
     const std::array<index_t,ar_dim>& start_vs,
@@ -114,6 +129,15 @@ template <typename index_t, const std::size_t range_dim> struct md_range_t
     {
         set_r(0, inits...);
     }
+    std::size_t size(void) const
+    {
+        std::size_t output = 1;
+        for (std::size_t i = 0; i < range_dim; ++i)
+        {
+            output *= (end_v[i]>start_v[i])?(end_v[i]-start_v[i]):0;
+        }
+        return output;
+    }
     template <typename init_t_1, typename init_t_2> void set_r(
         const std::size_t& idx, const init_t_1& imin, const init_t_2& imax)
     {
@@ -129,6 +153,11 @@ template <typename index_t, const std::size_t range_dim> struct md_range_t
         start_v[idx] = imin;
         end_v  [idx] = imax;
         set_r(idx+1, inits...);
+    }
+    
+    md_range_t<index_t, 1> subrange(const std::size_t& i) const
+    {
+        return md_range_t<index_t, 1>(this->start_v[i], this->end_v[i]);
     }
     
     template <typename index_r_t, const std::size_t range_dim_r>
@@ -163,10 +192,10 @@ template <typename index_t, const std::size_t range_dim> struct md_range_t
     }
 };
 
-template <typename prod> auto gpt_r(const prod& p) { return p; }
-template <typename prod, typename... prods> auto gpt_r(const prod& p, prods... ps) { return p*gpt_r(ps...); }
-template <typename... prods> auto get_prod(prods... ps) { return gpt_r(ps...); }
-template <typename... idxs_t> auto range(idxs_t... idxs)
+template <typename prod> static auto gpt_r(const prod& p) { return p; }
+template <typename prod, typename... prods> static  auto gpt_r(const prod& p, prods... ps) { return p*gpt_r(ps...); }
+template <typename... prods> static auto get_prod(prods... ps) { return gpt_r(ps...); }
+template <typename... idxs_t> static auto range(idxs_t... idxs)
 {
     static_assert(2*(sizeof...(idxs_t)/2)==sizeof...(idxs_t), "mdrange requires an even number of integral arguments!");
     return md_range_t<decltype(get_prod(idxs...)),sizeof...(idxs_t)/2>(idxs...);
